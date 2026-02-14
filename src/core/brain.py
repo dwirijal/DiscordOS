@@ -43,4 +43,19 @@ class BrainManager:
         except Exception as e:
             return f"❌ Brain Error: {e}"
 
+    async def embed_content(self, text):
+        try:
+            if self.gemini:
+                # Gemini Embedding (text-embedding-004 is a good default, or embedding-001)
+                result = await genai.embed_content_async(
+                    model="models/text-embedding-004",
+                    content=text,
+                    task_type="retrieval_query"
+                )
+                return result['embedding']
+            return None
+        except Exception as e:
+            print(f"❌ Embedding Error: {e}")
+            return None
+
 brain = BrainManager()

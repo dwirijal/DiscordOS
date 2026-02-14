@@ -23,7 +23,10 @@ class DiscordOS(commands.Bot):
         await memory.initialize()
         
         # 2. Load Cogs (Fitur)
-        # await self.load_extension("src.cogs.assistant")
+        await self.load_extension("src.cogs.assistant")
+        await self.load_extension("src.cogs.ingestion")
+        await self.load_extension("src.cogs.system")
+        await self.load_extension("src.cogs.monitor")
         
         print("🚀 DiscordOS Kernel Online")
 

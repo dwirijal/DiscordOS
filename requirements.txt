@@ -5,3 +5,4 @@ redis
 qdrant-client
 google-generativeai
 openai
+psutil

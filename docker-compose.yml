@@ -1,40 +1,18 @@
 version: '3.8'
 
 services:
-  # 1. Dragonfly (Cache/Redis replacement)
-  dragonfly:
-    image: 'docker.dragonflydb.io/dragonflydb/dragonfly'
-    ports:
-      - "6379:6379"
-    ulimits:
-      memlock: -1
-    container_name: discord_os_dragonfly
+  # DiscordOS Bot
+  discord-os:
+    build: .
+    container_name: discord_os_bot
     restart: always
-
-  # 2. Qdrant (Vector Database)
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
+    network_mode: host # Allows access to local Postgres/Dragonfly/Qdrant
+    env_file:
+      - .env
     volumes:
-      - ./data/qdrant_storage:/qdrant/storage
-    container_name: discord_os_qdrant
-    restart: always
-
-  # 3. PostgreSQL (Structured Data)
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: discord_os
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./data/postgres_data:/var/lib/postgresql/data
-    container_name: discord_os_postgres
-    restart: always
-
-networks:
-  default:
-    name: discord_os_network
+      - .:/app
+    command: python main.py
+  # Existing Services (Optional - for reference or new deployment)
+  # dragonfly: ...
+  # qdrant: ...
+  # postgres: ...

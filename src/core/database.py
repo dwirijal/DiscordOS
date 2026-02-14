@@ -15,11 +15,10 @@ class DatabaseManager:
         try:
             dsn = os.getenv("POSTGRES_DSN")
             if not dsn:
-                print("⚠️ POSTGRES_DSN not found in .env")
-                return
-                
-            self.pg_pool = await asyncpg.create_pool(dsn)
-            print("✅ PostgreSQL Connected (Structured Data)")
+                print("⚠️ POSTGRES_DSN not found in .env. Structured data will be unavailable.")
+            else:
+                self.pg_pool = await asyncpg.create_pool(dsn)
+                print("✅ PostgreSQL Connected (Structured Data)")
         except Exception as e:
             print(f"❌ Postgres Error: {e}")
 

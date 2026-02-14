@@ -30,6 +30,9 @@ class MemoryCore:
 
     async def recall(self, query_vector, limit=3):
         # Cari data yang relevan
+        if not query_vector:
+            return []
+
         try:
             return await self.client.search(
                 collection_name=self.collection_name,
