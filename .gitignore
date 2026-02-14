@@ -1,0 +1,19 @@
+# Environment Variables
+.env
+.env.local
+legacy_backup/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.so
+
+# Docker / Data
+data/
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
