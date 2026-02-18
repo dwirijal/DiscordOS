@@ -6,6 +6,8 @@ from qdrant_client.models import PointStruct
 import uuid
 import datetime
 
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB limit
+
 class Ingestion(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -20,6 +22,9 @@ class Ingestion(commands.Cog):
         if ctx.message.attachments:
             for attachment in ctx.message.attachments:
                 if attachment.filename.endswith(('.txt', '.md', '.py', '.json')):
+                    if attachment.size > MAX_FILE_SIZE:
+                        await ctx.send(f"⚠️ {attachment.filename} is too large (max 5MB). Skipping.")
+                        continue
                     try:
                         file_data = await attachment.read()
                         text_data = file_data.decode('utf-8')
