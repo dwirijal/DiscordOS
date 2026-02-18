@@ -6,3 +6,4 @@ qdrant-client
 google-generativeai
 openai
 psutil
+pillow

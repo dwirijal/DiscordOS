@@ -27,6 +27,14 @@ class DiscordOS(commands.Bot):
         await self.load_extension("src.cogs.ingestion")
         await self.load_extension("src.cogs.system")
         await self.load_extension("src.cogs.monitor")
+        await self.load_extension("src.cogs.health")
+
+        # 3. Sync Slash Commands
+        try:
+            synced = await self.tree.sync()
+            print(f"✅ Synced {len(synced)} command(s)")
+        except Exception as e:
+            print(f"❌ Command Sync Error: {e}")
         
         print("🚀 DiscordOS Kernel Online")
 
