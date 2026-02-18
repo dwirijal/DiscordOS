@@ -28,6 +28,7 @@ class DiscordOS(commands.Bot):
         await self.load_extension("src.cogs.system")
         await self.load_extension("src.cogs.monitor")
         await self.load_extension("src.cogs.health")
+        await self.load_extension("src.cogs.rss")
 
         # 3. Sync Slash Commands
         try:

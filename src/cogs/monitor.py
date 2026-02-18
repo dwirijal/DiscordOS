@@ -1,84 +1,124 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
 import psutil
 import platform
 import time
-import os
+import socket
+import aiohttp
+import datetime
 
 class Monitor(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.monitor_channel_id = None
-        self.monitor_message = None
-        self.server_stats.start()
+        self.alert_channel_id = None
+        self.system_check_loop.start()
 
     def cog_unload(self):
-        self.server_stats.cancel()
+        self.system_check_loop.cancel()
 
-    @commands.command(name="monitor")
+    @app_commands.command(name="system", description="Show real-time system status")
+    async def system_status(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        embed = await self.get_system_embed()
+        await interaction.followup.send(embed=embed)
+
+    @commands.command(name="set_alert_channel")
     @commands.is_owner()
-    async def set_monitor(self, ctx):
-        """Set current channel as the server monitor channel"""
-        self.monitor_channel_id = ctx.channel.id
-        await ctx.send(f"✅ Monitor set to this channel. Updates every 15s.")
-        # Force immediate update
-        if self.monitor_message:
-            try:
-                await self.monitor_message.delete()
-            except:
-                pass
-            self.monitor_message = None
+    async def set_alert_channel(self, ctx):
+        """Set current channel for system alerts"""
+        self.alert_channel_id = ctx.channel.id
+        await ctx.send(f"✅ System alerts will be sent to {ctx.channel.mention}")
 
-    @tasks.loop(seconds=15)
-    async def server_stats(self):
-        if not self.monitor_channel_id:
-            return
+    async def get_public_ip(self):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get('https://api.ipify.org') as resp:
+                    return await resp.text()
+        except:
+            return "Unknown"
 
-        channel = self.bot.get_channel(self.monitor_channel_id)
-        if not channel:
-            return
-
+    async def get_system_embed(self):
         # 1. Gather Metrics
-        cpu_percent = psutil.cpu_percent()
+        cpu_percent = psutil.cpu_percent(interval=1)
         ram = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
+        boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
         
-        # 2. Build Embed
-        embed = discord.Embed(title="🖥️ Server Vital Constants", color=discord.Color.blue())
-        embed.set_footer(text=f"Updated: {time.strftime('%H:%M:%S')} | OS: {platform.system()} {platform.release()}")
+        # Network
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        public_ip = await self.get_public_ip()
         
-        # CPU Bar
-        cpu_bar = self.make_bar(cpu_percent)
-        embed.add_field(name=f"CPU: {cpu_percent}%", value=f"`{cpu_bar}`", inline=False)
-        
-        # RAM Bar
-        ram_percent = ram.percent
-        ram_bar = self.make_bar(ram_percent)
-        ram_used_gb = round(ram.used / (1024**3), 2)
-        ram_total_gb = round(ram.total / (1024**3), 2)
-        embed.add_field(name=f"RAM: {ram_used_gb}GB / {ram_total_gb}GB ({ram_percent}%)", value=f"`{ram_bar}`", inline=False)
+        # Ping (google.com)
+        ping_ms = "N/A"
+        try:
+            st = time.time()
+            # Simple connect check
+            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            ping_ms = round((time.time() - st) * 1000, 2)
+        except:
+            pass
 
-        # Disk
-        disk_used_gb = round(disk.used / (1024**3), 2)
-        disk_total_gb = round(disk.total / (1024**3), 2)
-        embed.add_field(name="Storage (Root)", value=f"{disk_used_gb}GB / {disk_total_gb}GB ({disk.percent}%)", inline=True)
+        # DNS (Simulated check by resolving a domain)
+        dns_server = "System Default"
+        try:
+            # On Linux/Unix we can try to read /etc/resolv.conf
+            with open("/etc/resolv.conf", "r") as f:
+                for line in f:
+                    if line.startswith("nameserver"):
+                        dns_server = line.split()[1]
+                        break
+        except:
+            pass
 
-        # 3. Update or Send Message
-        if self.monitor_message:
-            try:
-                await self.monitor_message.edit(embed=embed)
-            except discord.NotFound:
-                self.monitor_message = await channel.send(embed=embed)
-        else:
-            self.monitor_message = await channel.send(embed=embed)
+        embed = discord.Embed(title="🖥️ System Status", color=discord.Color.blue())
+        embed.timestamp = datetime.datetime.now()
 
-    def make_bar(self, percent, length=20):
-        filled_length = int(length * percent // 100)
-        bar = '█' * filled_length + '░' * (length - filled_length)
-        return bar
+        # Time
+        now_ts = int(time.time())
+        embed.add_field(name="🕒 Time", value=f"<t:{now_ts}:F> (<t:{now_ts}:R>)", inline=False)
 
-    @server_stats.before_loop
-    async def before_server_stats(self):
+        # Vital Stats
+        embed.add_field(name="CPU Usage", value=f"**{cpu_percent}%**", inline=True)
+        embed.add_field(name="RAM Usage", value=f"**{ram.percent}%** ({round(ram.used/1024**3, 1)}/{round(ram.total/1024**3, 1)} GB)", inline=True)
+        embed.add_field(name="Disk Usage", value=f"**{disk.percent}%** ({round(disk.used/1024**3, 1)}/{round(disk.total/1024**3, 1)} GB)", inline=True)
+
+        # Network
+        net_info = (
+            f"**Hostname:** `{hostname}`\n"
+            f"**Local IP:** `{local_ip}`\n"
+            f"**Public IP:** `{public_ip}`\n"
+            f"**Ping (8.8.8.8):** `{ping_ms}ms`\n"
+            f"**DNS Server:** `{dns_server}`"
+        )
+        embed.add_field(name="🌐 Network", value=net_info, inline=False)
+
+        embed.set_footer(text=f"OS: {platform.system()} {platform.release()} | Uptime since: {boot_time.strftime('%Y-%m-%d %H:%M')}")
+        return embed
+
+    @tasks.loop(minutes=1)
+    async def system_check_loop(self):
+        # Alert Logic
+        if not self.alert_channel_id:
+            return
+
+        cpu = psutil.cpu_percent()
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage('/').percent
+
+        alerts = []
+        if cpu > 90: alerts.append(f"🔥 **High CPU Load:** {cpu}%")
+        if ram > 90: alerts.append(f"💾 **High RAM Usage:** {ram}%")
+        if disk > 90: alerts.append(f"📀 **Low Disk Space:** {disk}% Used")
+
+        if alerts:
+            channel = self.bot.get_channel(self.alert_channel_id)
+            if channel:
+                await channel.send("⚠️ **SYSTEM ALERT** ⚠️\n" + "\n".join(alerts))
+
+    @system_check_loop.before_loop
+    async def before_check(self):
         await self.bot.wait_until_ready()
 
 async def setup(bot):
