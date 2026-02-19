@@ -23,6 +23,7 @@ class DatabaseManager:
                 await self.initialize_health_tables()
                 await self.initialize_rss_tables()
                 await self.initialize_settings_table()
+                await self.initialize_finance_tables()
         except Exception as e:
             print(f"❌ Postgres Error: {e}")
 
@@ -107,6 +108,40 @@ class DatabaseManager:
                 print("✅ Settings Table Initialized")
         except Exception as e:
             print(f"❌ Database Settings Init Error: {e}")
+
+    async def initialize_finance_tables(self):
+        if not self.pg_pool: return
+        query = """
+        CREATE TABLE IF NOT EXISTS accounts (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            currency TEXT DEFAULT 'IDR',
+            balance NUMERIC(20,8) DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS transactions (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER REFERENCES accounts(id),
+            type TEXT NOT NULL,
+            amount NUMERIC(20,2) NOT NULL,
+            category TEXT,
+            note TEXT,
+            tx_date DATE DEFAULT CURRENT_DATE,
+            contact_id TEXT,
+            contact_name TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+        CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(tx_date);
+        """
+        try:
+            async with self.pg_pool.acquire() as conn:
+                await conn.execute(query)
+                print("✅ Finance Tables Initialized")
+        except Exception as e:
+            print(f"❌ Database Finance Init Error: {e}")
 
     async def set_setting(self, key, value):
         if not self.pg_pool: return False

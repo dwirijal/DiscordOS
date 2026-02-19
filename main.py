@@ -27,6 +27,7 @@ class DiscordOS(commands.Bot):
         # 2. Load Cogs (Fitur)
         await self.load_extension("src.cogs.assistant")
         await self.load_extension("src.cogs.config")
+        await self.load_extension("src.cogs.finance")
         await self.load_extension("src.cogs.ingestion")
         await self.load_extension("src.cogs.system")
         await self.load_extension("src.cogs.monitor")
