@@ -22,6 +22,8 @@ class DatabaseManager:
                 print("✅ PostgreSQL Connected (Structured Data)")
                 await self.initialize_health_tables()
                 await self.initialize_rss_tables()
+                await self.initialize_settings_table()
+                await self.initialize_finance_tables()
         except Exception as e:
             print(f"❌ Postgres Error: {e}")
 
@@ -90,6 +92,93 @@ class DatabaseManager:
                 print("✅ RSS Tables Initialized")
         except Exception as e:
             print(f"❌ Database RSS Init Error: {e}")
+
+    async def initialize_settings_table(self):
+        if not self.pg_pool: return
+        query = """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        try:
+            async with self.pg_pool.acquire() as conn:
+                await conn.execute(query)
+                print("✅ Settings Table Initialized")
+        except Exception as e:
+            print(f"❌ Database Settings Init Error: {e}")
+
+    async def initialize_finance_tables(self):
+        if not self.pg_pool: return
+        query = """
+        CREATE TABLE IF NOT EXISTS accounts (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            currency TEXT DEFAULT 'IDR',
+            balance NUMERIC(20,8) DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS transactions (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER REFERENCES accounts(id),
+            type TEXT NOT NULL,
+            amount NUMERIC(20,2) NOT NULL,
+            category TEXT,
+            note TEXT,
+            tx_date DATE DEFAULT CURRENT_DATE,
+            contact_id TEXT,
+            contact_name TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+        CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(tx_date);
+        """
+        try:
+            async with self.pg_pool.acquire() as conn:
+                await conn.execute(query)
+                print("✅ Finance Tables Initialized")
+        except Exception as e:
+            print(f"❌ Database Finance Init Error: {e}")
+
+    async def set_setting(self, key, value):
+        if not self.pg_pool: return False
+        query = """
+            INSERT INTO settings (key, value, updated_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()
+        """
+        try:
+            async with self.pg_pool.acquire() as conn:
+                await conn.execute(query, key, str(value))
+            return True
+        except Exception as e:
+            print(f"❌ Set Setting Error: {e}")
+            return False
+
+    async def get_setting(self, key):
+        if not self.pg_pool: return None
+        query = "SELECT value FROM settings WHERE key = $1"
+        try:
+            async with self.pg_pool.acquire() as conn:
+                row = await conn.fetchrow(query, key)
+                return row['value'] if row else None
+        except Exception as e:
+            print(f"❌ Get Setting Error: {e}")
+            return None
+
+    async def get_all_settings(self):
+        if not self.pg_pool: return {}
+        query = "SELECT key, value FROM settings"
+        try:
+            async with self.pg_pool.acquire() as conn:
+                rows = await conn.fetch(query)
+                return {row['key']: row['value'] for row in rows}
+        except Exception as e:
+            print(f"❌ Get All Settings Error: {e}")
+            return {}
 
     async def add_rss_feed(self, url, category="general"):
         if not self.pg_pool: return False

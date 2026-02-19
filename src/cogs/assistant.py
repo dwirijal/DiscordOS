@@ -60,7 +60,6 @@ class Assistant(commands.Cog):
                 
                 response_text = await brain.think(
                     prompt=clean_content, 
-                    model="gemini", # Default to Gemini
                     context=context
                 )
 
