@@ -5,6 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 from src.core.database import db
 from src.core.memory import memory
+from src.core.brain import brain
 
 load_dotenv()
 
@@ -21,9 +22,11 @@ class DiscordOS(commands.Bot):
         print("🔗 Connecting to Neural Network...")
         await db.connect()
         await memory.initialize()
+        await brain.initialize()
         
         # 2. Load Cogs (Fitur)
         await self.load_extension("src.cogs.assistant")
+        await self.load_extension("src.cogs.config")
         await self.load_extension("src.cogs.ingestion")
         await self.load_extension("src.cogs.system")
         await self.load_extension("src.cogs.monitor")
