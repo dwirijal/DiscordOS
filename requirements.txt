@@ -6,3 +6,8 @@ qdrant-client
 google-generativeai
 openai
 psutil
+pillow
+feedparser
+beautifulsoup4
+aiohttp
+requests

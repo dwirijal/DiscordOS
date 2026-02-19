@@ -17,26 +17,44 @@ class BrainManager:
             self.gemini = None
         
         # Setup Qwen (via OpenAI compatible endpoint)
-        self.qwen = AsyncOpenAI(
-            base_url=os.getenv("QWEN_API_BASE"),
-            api_key=os.getenv("QWEN_API_KEY")
-        )
+        qwen_key = os.getenv("QWEN_API_KEY")
+        qwen_base = os.getenv("QWEN_API_BASE")
 
-    async def think(self, prompt, model="gemini", context=""):
-        full_prompt = f"Context from memory:\n{context}\n\nUser Query: {prompt}"
+        if qwen_key and qwen_base:
+            self.qwen = AsyncOpenAI(
+                base_url=qwen_base,
+                api_key=qwen_key
+            )
+        else:
+            print("⚠️ Qwen API Key or Base URL not found in .env")
+            self.qwen = None
+
+    async def think(self, prompt, model="gemini", context="", images=None):
+        text_prompt = f"Context from memory:\n{context}\n\nUser Query: {prompt}"
         
         try:
-            if model == "qwen":
+            if model == "qwen" and not images:
+                if not self.qwen:
+                    return "❌ Qwen Brain not configured."
+
                 # Pakai Qwen untuk coding/logic keras
                 response = await self.qwen.chat.completions.create(
                     model="qwen-2.5-72b", # Sesuaikan nama model di servermu
-                    messages=[{"role": "user", "content": full_prompt}]
+                    messages=[{"role": "user", "content": text_prompt}]
                 )
                 return response.choices[0].message.content
             else:
-                # Pakai Gemini untuk general chat & creative
+                # Pakai Gemini untuk general chat & creative & VISION
                 if self.gemini:
-                    response = await self.gemini.generate_content_async(full_prompt)
+                    if images:
+                        # Jika ada gambar, input jadi list [text, image1, image2...]
+                        # Pastikan images adalah list
+                        if not isinstance(images, list):
+                            images = [images]
+                        content = [text_prompt] + images
+                        response = await self.gemini.generate_content_async(content)
+                    else:
+                        response = await self.gemini.generate_content_async(text_prompt)
                     return response.text
                 else:
                     return "❌ Gemini Brain not configured."

@@ -16,7 +16,9 @@ class Ingestion(commands.Cog):
     async def memorize(self, ctx, *, content: str = None):
         """Save text or attached file content to Long-term Memory"""
         
-        target_content = content
+        content_parts = []
+        if content:
+            content_parts.append(content)
         
         # Handle Attachments (Text files only for now)
         if ctx.message.attachments:
@@ -28,13 +30,12 @@ class Ingestion(commands.Cog):
                     try:
                         file_data = await attachment.read()
                         text_data = file_data.decode('utf-8')
-                        if target_content:
-                            target_content += f"\n\nFile: {attachment.filename}\n{text_data}"
-                        else:
-                            target_content = f"File: {attachment.filename}\n{text_data}"
+                        content_parts.append(f"File: {attachment.filename}\n{text_data}")
                     except Exception as e:
                         await ctx.send(f"❌ Failed to read {attachment.filename}: {e}")
         
+        target_content = "\n\n".join(content_parts)
+
         if not target_content:
             await ctx.send("❓ Please provide text or a text file to memorize.")
             return

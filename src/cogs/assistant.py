@@ -3,7 +3,6 @@ from discord.ext import commands
 from src.core.database import db
 from src.core.memory import memory
 from src.core.brain import brain
-import time
 
 class Assistant(commands.Cog):
     def __init__(self, bot):
