@@ -2,53 +2,85 @@ import google.generativeai as genai
 from openai import AsyncOpenAI
 import os
 from dotenv import load_dotenv
+from src.core.database import db
 
 load_dotenv()
 
 class BrainManager:
     def __init__(self):
-        # Setup Gemini
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key:
-            genai.configure(api_key=api_key)
-            self.gemini = genai.GenerativeModel('gemini-1.5-flash')
+        self.gemini = None
+        self.qwen = None # This handles OpenAI/Ollama compatible endpoints
+        self.config = {}
+
+    async def initialize(self):
+        print("🧠 Initializing Brain...")
+        await self.load_config()
+
+    async def load_config(self):
+        # 1. Load from DB
+        settings = await db.get_all_settings()
+        self.config = settings
+
+        # 2. Setup Gemini
+        gemini_key = settings.get("gemini_api_key") or os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                genai.configure(api_key=gemini_key)
+                self.gemini = genai.GenerativeModel('gemini-1.5-flash')
+                # print("✨ Gemini Online")
+            except Exception as e:
+                print(f"❌ Gemini Setup Error: {e}")
+                self.gemini = None
         else:
-            print("⚠️ GEMINI_API_KEY not found in .env")
             self.gemini = None
         
-        # Setup Qwen (via OpenAI compatible endpoint)
-        qwen_key = os.getenv("QWEN_API_KEY")
-        qwen_base = os.getenv("QWEN_API_BASE")
+        # 3. Setup OpenAI/Ollama
+        # Map old env vars QWEN_* to generic OpenAI client
+        openai_key = settings.get("openai_api_key") or os.getenv("QWEN_API_KEY") or "ollama"
+        openai_base = settings.get("openai_base_url") or os.getenv("QWEN_API_BASE")
 
-        if qwen_key and qwen_base:
-            self.qwen = AsyncOpenAI(
-                base_url=qwen_base,
-                api_key=qwen_key
-            )
+        if openai_key and openai_base:
+            try:
+                self.qwen = AsyncOpenAI(
+                    base_url=openai_base,
+                    api_key=openai_key
+                )
+                # print(f"🤖 OpenAI/Ollama Online ({openai_base})")
+            except Exception as e:
+                print(f"❌ OpenAI/Ollama Setup Error: {e}")
+                self.qwen = None
         else:
-            print("⚠️ Qwen API Key or Base URL not found in .env")
             self.qwen = None
 
-    async def think(self, prompt, model="gemini", context="", images=None):
+    async def reload(self):
+        await self.load_config()
+
+    async def think(self, prompt, model=None, context="", images=None):
         text_prompt = f"Context from memory:\n{context}\n\nUser Query: {prompt}"
         
-        try:
-            if model == "qwen" and not images:
-                if not self.qwen:
-                    return "❌ Qwen Brain not configured."
+        # Determine default model from config if not specified
+        if model is None:
+            model = self.config.get("ai_provider", "gemini")
 
-                # Pakai Qwen untuk coding/logic keras
+        # Determine model usage
+        use_openai = model in ["qwen", "ollama", "local", "openai"]
+
+        try:
+            if use_openai and not images:
+                if not self.qwen:
+                    return "❌ OpenAI/Ollama Brain not configured."
+
+                model_name = self.config.get("openai_model") or "qwen-2.5-72b"
+
                 response = await self.qwen.chat.completions.create(
-                    model="qwen-2.5-72b", # Sesuaikan nama model di servermu
+                    model=model_name,
                     messages=[{"role": "user", "content": text_prompt}]
                 )
                 return response.choices[0].message.content
             else:
-                # Pakai Gemini untuk general chat & creative & VISION
+                # Default to Gemini (handles images and text)
                 if self.gemini:
                     if images:
-                        # Jika ada gambar, input jadi list [text, image1, image2...]
-                        # Pastikan images adalah list
                         if not isinstance(images, list):
                             images = [images]
                         content = [text_prompt] + images
@@ -63,8 +95,20 @@ class BrainManager:
 
     async def embed_content(self, text):
         try:
-            if self.gemini:
-                # Gemini Embedding (text-embedding-004 is a good default, or embedding-001)
+            # Check config for preferred embedding provider
+            provider = self.config.get("embed_provider", "gemini")
+
+            if provider in ["openai", "ollama"] and self.qwen:
+                model = self.config.get("embed_model", "text-embedding-3-small")
+                # OpenAI/Ollama Embedding
+                response = await self.qwen.embeddings.create(
+                    input=text,
+                    model=model
+                )
+                return response.data[0].embedding
+
+            elif self.gemini:
+                # Gemini Embedding
                 result = await genai.embed_content_async(
                     model="models/text-embedding-004",
                     content=text,

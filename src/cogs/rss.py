@@ -124,8 +124,8 @@ class RSS(commands.Cog):
                     # AI Summarize
                     prompt = f"Summarize this news article in maximum 3 concise bullet points. Focus on the main event and economic/global impact. Title: {title}\nContent: {context_text}"
 
-                    # Prefer Qwen for speed/logic, fall back to Gemini
-                    ai_summary = await brain.think(prompt=prompt, model="qwen")
+                    # Use default configured brain
+                    ai_summary = await brain.think(prompt=prompt)
 
                     # Publish
                     embed = discord.Embed(title=title, url=link, description=ai_summary, color=discord.Color.gold())
